@@ -1,0 +1,57 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "attendance": {
+      ".read": "auth != null",
+      "$record": {
+        ".write": "auth != null && !data.exists()",
+        ".validate": "newData.hasChildren(['name', 'date', 'time', 'latitude', 'longitude', 'distance', 'status'])",
+        "name": { ".validate": "newData.isString() && newData.val().length <= 80" },
+        "date": { ".validate": "newData.isString()" },
+        "time": { ".validate": "newData.isString()" },
+        "latitude": { ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90" },
+        "longitude": { ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180" },
+        "distance": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "status": { ".validate": "newData.val() == 'Present'" },
+        "mainFiller": { ".validate": "!newData.exists() || newData.val() == '' || newData.val() == 'Yes' || newData.val() == 'No'" },
+        "graphicsServerName": { ".validate": "!newData.exists() || newData.isString()" },
+        "graphicsServerStatus": { ".validate": "!newData.exists() || newData.isString()" }
+      }
+    },
+    "eventAttendance": {
+      ".read": "auth != null",
+      "$event": {
+        ".write": "auth != null && !data.exists()",
+        ".validate": "newData.hasChildren(['eventType', 'date', 'attendees']) && newData.child('attendees').hasChildren()",
+        "eventType": { ".validate": "newData.isString() && newData.val().length <= 100" },
+        "date": { ".validate": "newData.isString()" },
+        "mainFiller": { ".validate": "newData.val() == 'Yes' || newData.val() == 'No'" },
+        "submitterDistance": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "graphicsServerName": { ".validate": "newData.isString()" },
+        "graphicsServerStatus": { ".validate": "newData.isString()" },
+        "attendees": {
+          "$attendee": {
+            ".validate": "newData.hasChildren(['name', 'status'])",
+            "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
+            "status": { ".validate": "newData.val() == 'Present' || newData.val() == 'Late' || newData.val() == 'Absent'" }
+          }
+        }
+      }
+    },
+    "graphicsSchedule": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".validate": "newData.hasChildren(['servers', 'assignments'])"
+    },
+    "location": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".validate": "newData.hasChildren(['name', 'latitude', 'longitude', 'radius'])",
+      "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
+      "latitude": { ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90" },
+      "longitude": { ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180" },
+      "radius": { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 50000" }
+    }
+  }
+}

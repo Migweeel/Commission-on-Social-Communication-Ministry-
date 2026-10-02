@@ -8,49 +8,28 @@ const LOCATION_SETTINGS_PASSWORD = "multimedia2026";
 // Add a browser key restricted to this site's HTTP referrers after enabling Maps JavaScript API.
 const GOOGLE_MAPS_API_KEY = "PASTE_YOUR_GOOGLE_MAPS_API_KEY_HERE";
 
-// Paste the deployed Apps Script Web App URL ending in /exec here.
-const GOOGLE_APPS_SCRIPT_URL = "https://script.google.com/macros/s/AKfycby6B6x1_y28GBQiadt-LUd99JVyjeQxSyUQ7MwCKL2mmFT5i6J_PUB05QnY25bJt6mG/exec";
+// Copy these public web app values from Firebase project settings.
+const FIREBASE_CONFIG = {
+  apiKey: "PASTE_YOUR_FIREBASE_API_KEY_HERE",
+  authDomain: "PASTE_YOUR_FIREBASE_PROJECT_ID_HERE.firebaseapp.com",
+  databaseURL: "https://PASTE_YOUR_FIREBASE_DATABASE_NAME_HERE-default-rtdb.firebaseio.com",
+  projectId: "PASTE_YOUR_FIREBASE_PROJECT_ID_HERE",
+  appId: "PASTE_YOUR_FIREBASE_APP_ID_HERE",
+};
 const LOCATION_STORAGE_KEY = "geoattend-location";
-const EVENT_ATTENDANCE_STORAGE_KEY = "ministry-event-attendance";
 const ATTENDANCE_DRAFT_STORAGE_KEY = "geoattend-attendance-draft";
 const LOCATION_DRAFT_STORAGE_KEY = "geoattend-location-draft";
 const EVENT_DRAFT_STORAGE_KEY = "ministry-event-attendance-draft";
 const GRAPHICS_SCHEDULE_DRAFT_KEY = "geoattend-graphics-schedule-draft";
 
-function loadEventAttendance() {
-  try {
-    const saved = JSON.parse(localStorage.getItem(EVENT_ATTENDANCE_STORAGE_KEY));
-    return Array.isArray(saved) ? saved : [];
-  } catch (error) {
-    return [];
-  }
-}
-
 async function loadSharedEventAttendance() {
-  if (GOOGLE_APPS_SCRIPT_URL.includes("PASTE_YOUR_")) {
-    eventAttendanceRecords = loadEventAttendance();
-    renderEventAttendance();
-    return;
-  }
-
   try {
-    const response = await fetch(GOOGLE_APPS_SCRIPT_URL, { cache: "no-store" });
-    const result = await response.json();
-    if (response.ok && result.success && Array.isArray(result.eventAttendance)) {
-      eventAttendanceRecords = result.eventAttendance;
-      try {
-        localStorage.setItem(EVENT_ATTENDANCE_STORAGE_KEY, JSON.stringify(eventAttendanceRecords));
-      } catch (error) {
-        // Keep using the server copy if local storage is blocked.
-      }
-      renderEventAttendance();
-      return;
-    }
+    await databaseReady;
+    const snapshot = await database.ref("eventAttendance").once("value");
+    eventAttendanceRecords = Object.values(snapshot.val() || {}).reverse();
   } catch (error) {
-    // Fall back to the local cached data if the shared data cannot be loaded.
+    eventAttendanceRecords = [];
   }
-
-  eventAttendanceRecords = loadEventAttendance();
   renderEventAttendance();
 }
 
@@ -148,7 +127,9 @@ const graphicsScheduleStatus = document.getElementById("graphics-schedule-status
 
 let attendanceLocation = loadLocationSettings();
 let attendanceRecords = [];
-let eventAttendanceRecords = loadEventAttendance();
+let eventAttendanceRecords = [];
+let database = null;
+let databaseReady;
 let sheetsConnected = false;
 let googleMap = null;
 let googleMapMarker = null;
@@ -230,8 +211,8 @@ renderRecords();
 renderEventAttendance();
 restoreAttendanceDraft();
 restoreEventAttendanceDraft();
+databaseReady = connectRealtimeDatabase();
 void loadDailyMainFillerStatus();
-void loadSharedEventAttendance();
 
 nameInput.addEventListener("input", () => {
   saveAttendanceDraft();
@@ -267,18 +248,83 @@ function calculateDistance(lat1, lon1, lat2, lon2) {
 }
 
 async function loadDailyMainFillerStatus() {
-  if (GOOGLE_APPS_SCRIPT_URL.includes("PASTE_YOUR_")) return;
-
   try {
-    const response = await fetch(GOOGLE_APPS_SCRIPT_URL);
-    const result = await response.json();
-    sharedGraphicsSchedule = normalizeGraphicsSchedule(result.graphicsSchedule);
-    mainFillerAlreadyAnsweredToday = Boolean(result.mainFiller && result.mainFiller.answered);
+    await databaseReady;
+    const today = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Manila",
+      month: "2-digit",
+      day: "2-digit",
+      year: "numeric",
+    }).format(new Date());
+    mainFillerAlreadyAnsweredToday = attendanceRecords.some((record) =>
+      record.date === today && ["Yes", "No"].includes(record.mainFiller),
+    );
     updateMainFillerAvailability();
     if (mainFillerAlreadyAnsweredToday && attendanceMainFillerInput.value) handleMainFillerChange();
   } catch (error) {
-    // The server enforces the daily limit when attendance is submitted.
+    // The realtime database listener will retry status updates when it reconnects.
   }
+}
+
+async function connectRealtimeDatabase() {
+  const requiredConfig = [FIREBASE_CONFIG.apiKey, FIREBASE_CONFIG.projectId, FIREBASE_CONFIG.appId];
+  if (requiredConfig.some((value) => value.includes("PASTE_YOUR_")) || FIREBASE_CONFIG.databaseURL.includes("PASTE_YOUR_")) {
+    updateSheetsStatus("disconnected", "Realtime Database Not Configured", "Add your Firebase web app config in script.js to enable shared records.");
+    return;
+  }
+
+  try {
+    if (!window.firebase || !firebase.database || !firebase.auth) {
+      throw new Error("Firebase SDK could not load.");
+    }
+    if (!firebase.apps.length) firebase.initializeApp(FIREBASE_CONFIG);
+    await firebase.auth().signInAnonymously();
+    database = firebase.database();
+
+    database.ref("attendance").on("value", (snapshot) => {
+      attendanceRecords = Object.values(snapshot.val() || {}).reverse();
+      sheetsConnected = true;
+      renderRecords();
+      void loadDailyMainFillerStatus();
+      updateSheetsStatus("connected", "Realtime Database Connected", "Attendance updates sync live for site visitors.");
+    }, handleDatabaseError);
+
+    database.ref("eventAttendance").on("value", (snapshot) => {
+      eventAttendanceRecords = Object.values(snapshot.val() || {}).reverse();
+      renderEventAttendance();
+    }, handleDatabaseError);
+
+    database.ref("graphicsSchedule").on("value", (snapshot) => {
+      sharedGraphicsSchedule = normalizeGraphicsSchedule(snapshot.val());
+      if (locationSettingsUnlocked && !readLocalDraft(GRAPHICS_SCHEDULE_DRAFT_KEY)) {
+        graphicsSchedule = sharedGraphicsSchedule;
+        renderGraphicsSchedule();
+      }
+    }, handleDatabaseError);
+
+    database.ref("location").on("value", (snapshot) => {
+      const saved = snapshot.val();
+      if (!saved || typeof saved.name !== "string" || !Number.isFinite(Number(saved.latitude)) || !Number.isFinite(Number(saved.longitude)) || !Number.isFinite(Number(saved.radius))) return;
+      attendanceLocation = {
+        name: saved.name,
+        latitude: Number(saved.latitude),
+        longitude: Number(saved.longitude),
+        radius: Number(saved.radius),
+      };
+      updateEventLocationReference();
+      if (document.querySelector('[data-view="settings"]').hidden || !readLocalDraft(LOCATION_DRAFT_STORAGE_KEY)) populateLocationSettings();
+      document.getElementById("radius-value").textContent = `${attendanceLocation.radius} m`;
+    }, handleDatabaseError);
+  } catch (error) {
+    sheetsConnected = false;
+    updateSheetsStatus("disconnected", "Realtime Database Disconnected", error.message || "Check your Firebase setup and anonymous sign-in settings.");
+    throw error;
+  }
+}
+
+function handleDatabaseError(error) {
+  sheetsConnected = false;
+  updateSheetsStatus("disconnected", "Realtime Database Disconnected", error.message || "Could not synchronize shared records.");
 }
 
 function updateMainFillerAvailability() {
@@ -473,11 +519,6 @@ async function submitAttendance(event) {
     submitButton.disabled = true;
     return;
   }
-  if (GOOGLE_APPS_SCRIPT_URL.includes("PASTE_YOUR_")) {
-    showResultError("Add your Google Apps Script Web App URL to script.js before submitting.", true);
-    return;
-  }
-
   submitButton.disabled = true;
   showView("loading");
   document.getElementById("loading-title").textContent = "Recording Attendance...";
@@ -489,20 +530,34 @@ async function submitAttendance(event) {
   `;
 
   try {
-    const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({
-        name,
-        latitude: currentLocation.latitude,
-        longitude: currentLocation.longitude,
-        distance: Math.round(currentDistance),
-        mainFiller: attendanceMainFillerInput.value,
-      }),
-    });
-    const result = await response.json();
+    await databaseReady;
+    if (!database) throw new Error("Add your Firebase project configuration to script.js first.");
 
-    if (result.code === "MAIN_FILLER_ALREADY_ANSWERED" && attendanceMainFillerInput.value) {
+    const [attendanceSnapshot, scheduleSnapshot] = await Promise.all([
+      database.ref("attendance").once("value"),
+      database.ref("graphicsSchedule").once("value"),
+    ]);
+    attendanceRecords = Object.values(attendanceSnapshot.val() || {}).reverse();
+    sharedGraphicsSchedule = normalizeGraphicsSchedule(scheduleSnapshot.val());
+
+    const today = new Intl.DateTimeFormat("en-US", {
+      timeZone: "Asia/Manila",
+      month: "2-digit",
+      day: "2-digit",
+      year: "numeric",
+    }).format(new Date());
+    const existing = attendanceRecords.find((record) =>
+      record.date === today && String(record.name).trim().toLocaleLowerCase() === name.toLocaleLowerCase(),
+    );
+    if (existing) {
+      showDuplicateResult({ attendance: existing, message: `${existing.name} has already recorded attendance today.` });
+      return;
+    }
+
+    mainFillerAlreadyAnsweredToday = attendanceRecords.some((record) =>
+      record.date === today && ["Yes", "No"].includes(record.mainFiller),
+    );
+    if (mainFillerAlreadyAnsweredToday && attendanceMainFillerInput.value) {
       mainFillerAlreadyAnsweredToday = true;
       updateMainFillerAvailability();
       const skipQuestion = window.confirm("Another attendee has already answered this today. Skip this optional question and submit your attendance?");
@@ -518,7 +573,9 @@ async function submitAttendance(event) {
       return;
     }
 
-    if (result.code === "GRAPHICS_SERVER_NOT_ASSIGNED" && attendanceMainFillerInput.value) {
+    const assignmentDate = getTodayIsoDate();
+    const graphicsServerAssignment = getGraphicsAssignmentForDate(assignmentDate);
+    if (!graphicsServerAssignment && attendanceMainFillerInput.value) {
       const skipQuestion = window.confirm("No Graphics server is assigned for this date. Skip the optional question and submit attendance?");
       if (skipQuestion) {
         attendanceMainFillerInput.value = "";
@@ -532,23 +589,37 @@ async function submitAttendance(event) {
       return;
     }
 
-    if (result.code === "ALREADY_RECORDED") {
-      showDuplicateResult(result);
-      return;
-    }
-    if (!result.success) {
-      showResultError(result.message || "Attendance could not be recorded. Please try again.", true);
-      return;
-    }
+    const now = new Date();
+    const attendance = {
+      name,
+      date: today,
+      time: new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Manila",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      }).format(now),
+      latitude: currentLocation.latitude,
+      longitude: currentLocation.longitude,
+      distance: Math.round(currentDistance),
+      status: "Present",
+      mainFiller: attendanceMainFillerInput.value,
+      graphicsServerName: graphicsServerAssignment?.serverName || "",
+      graphicsServerStatus: graphicsServerAssignment
+        ? attendanceMainFillerInput.value === "Yes" ? "Present" : attendanceMainFillerInput.value === "No" ? "Absent" : ""
+        : "",
+    };
+    await database.ref("attendance").push().set(attendance);
 
-    if (result.attendance && result.attendance.mainFiller) {
+    if (attendance.mainFiller) {
       mainFillerAlreadyAnsweredToday = true;
       updateMainFillerAvailability();
     }
-    showSuccessResult(result.attendance);
-  } catch {
+    showSuccessResult(attendance);
+  } catch (error) {
     showResultError(
-      "Could not connect to Google Apps Script. Check the Web App URL and deployment access, then try again.",
+      error.message || "Could not connect to the shared database. Check Firebase setup and try again.",
       true,
     );
   }
@@ -845,18 +916,12 @@ function setGraphicsScheduleStatus(message, kind = "") {
 
 async function loadGraphicsSchedule() {
   const draft = readLocalDraft(GRAPHICS_SCHEDULE_DRAFT_KEY);
-  if (GOOGLE_APPS_SCRIPT_URL.includes("PASTE_YOUR_")) {
-    graphicsSchedule = normalizeGraphicsSchedule(draft);
-    renderGraphicsSchedule();
-    setGraphicsScheduleStatus("Local draft loaded. Set the Apps Script URL to share schedules with attendees.", "error");
-    return;
-  }
-
   try {
-    const response = await fetch(GOOGLE_APPS_SCRIPT_URL, { cache: "no-store" });
-    const result = await response.json();
-    if (!response.ok || !result.success) throw new Error("Schedule could not be loaded.");
-    graphicsSchedule = normalizeGraphicsSchedule(draft || result.graphicsSchedule);
+    await databaseReady;
+    if (!database) throw new Error("Configure Firebase to share the schedule.");
+    const snapshot = await database.ref("graphicsSchedule").once("value");
+    sharedGraphicsSchedule = normalizeGraphicsSchedule(snapshot.val());
+    graphicsSchedule = normalizeGraphicsSchedule(draft || sharedGraphicsSchedule);
     renderGraphicsSchedule();
     setGraphicsScheduleStatus(draft ? "Unsaved local schedule draft restored. Save it to publish the changes." : "Shared Graphics schedule loaded.");
   } catch (error) {
@@ -894,23 +959,15 @@ async function saveGraphicsSchedule() {
 
   graphicsSchedule = { servers, assignments };
   writeLocalDraft(GRAPHICS_SCHEDULE_DRAFT_KEY, graphicsSchedule);
-  if (GOOGLE_APPS_SCRIPT_URL.includes("PASTE_YOUR_")) {
-    setGraphicsScheduleStatus("Schedule draft saved on this browser. Configure the Apps Script URL to share it with attendees.", "error");
-    return;
-  }
 
   const saveButton = document.getElementById("save-graphics-schedule");
   saveButton.disabled = true;
   setGraphicsScheduleStatus("Saving shared Graphics schedule...");
   try {
-    const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({ action: "saveGraphicsSchedule", servers, assignments }),
-    });
-    const result = await response.json();
-    if (!response.ok || !result.success) throw new Error(result.message || "Schedule could not be saved.");
-    graphicsSchedule = normalizeGraphicsSchedule(result.graphicsSchedule);
+    await databaseReady;
+    if (!database) throw new Error("Configure Firebase to share the schedule.");
+    await database.ref("graphicsSchedule").set({ servers, assignments });
+    sharedGraphicsSchedule = normalizeGraphicsSchedule({ servers, assignments });
     renderGraphicsSchedule();
     removeLocalDraft(GRAPHICS_SCHEDULE_DRAFT_KEY);
     setGraphicsScheduleStatus("Shared Graphics schedule saved.", "success");
@@ -1055,7 +1112,7 @@ function setLocationFromMap(latitude, longitude) {
   saveLocationSettingsDraft();
 }
 
-function saveLocationSettings(event) {
+async function saveLocationSettings(event) {
   event.preventDefault();
   const nextSettings = {
     name: document.getElementById("location-name").value.trim(),
@@ -1071,6 +1128,15 @@ function saveLocationSettings(event) {
     !Number.isFinite(nextSettings.radius) || nextSettings.radius <= 0
   ) {
     showToast("Enter a valid name, coordinate pair, and radius.");
+    return;
+  }
+
+  try {
+    await databaseReady;
+    if (!database) throw new Error("Configure Firebase before saving shared location settings.");
+    await database.ref("location").set(nextSettings);
+  } catch (error) {
+    showToast(error.message || "Location could not be saved to the shared database.");
     return;
   }
 
@@ -1095,43 +1161,28 @@ function saveLocationSettings(event) {
   locationMetrics.hidden = true;
   setLocationStatus("idle", "📍", "Location not checked", "Check your location again to use the updated radius.");
   updateMapPreview();
-  showToast(persisted ? "Location saved on this browser." : "Location updated for this visit only.");
+  showToast(persisted ? "Location saved for all site visitors." : "Location shared; browser cache could not be updated.");
 }
 
 async function loadRecords() {
-  if (GOOGLE_APPS_SCRIPT_URL.includes("PASTE_YOUR_")) {
-    sheetsConnected = false;
-    attendanceRecords = [];
-    updateSheetsStatus("disconnected", "Google Sheets Disconnected", "Set the Apps Script URL to load attendance records.");
-    renderRecords();
-    return;
-  }
-
-  updateSheetsStatus("loading", "Connecting to Google Sheets...", "Loading attendance records.");
+  updateSheetsStatus("loading", "Connecting to Realtime Database...", "Loading shared attendance records.");
   const refreshButton = document.getElementById("refresh-records");
   refreshButton.disabled = true;
   try {
-    const response = await fetch(GOOGLE_APPS_SCRIPT_URL, { cache: "no-store" });
-    const result = await response.json();
-    if (!response.ok || !result.success || !Array.isArray(result.records)) {
-      throw new Error("Attendance records are unavailable.");
-    }
-    attendanceRecords = result.records;
-    if (Array.isArray(result.eventAttendance)) {
-      eventAttendanceRecords = result.eventAttendance;
-      try {
-        localStorage.setItem(EVENT_ATTENDANCE_STORAGE_KEY, JSON.stringify(eventAttendanceRecords));
-      } catch (error) {
-        // Shared data should remain the canonical record when local storage is limited.
-      }
-    }
+    await databaseReady;
+    if (!database) throw new Error("Configure Firebase to load shared attendance records.");
+    const [attendanceSnapshot, eventSnapshot] = await Promise.all([
+      database.ref("attendance").once("value"),
+      database.ref("eventAttendance").once("value"),
+    ]);
+    attendanceRecords = Object.values(attendanceSnapshot.val() || {}).reverse();
+    eventAttendanceRecords = Object.values(eventSnapshot.val() || {}).reverse();
     renderEventAttendance();
     sheetsConnected = true;
-    updateSheetsStatus("connected", "Google Sheets Connected", "Attendance records are being synchronized automatically.");
+    updateSheetsStatus("connected", "Realtime Database Connected", "Attendance records sync live for site visitors.");
   } catch (error) {
     sheetsConnected = false;
-    attendanceRecords = [];
-    updateSheetsStatus("disconnected", "Google Sheets Disconnected", "Attendance records could not be loaded. No example rows are shown.");
+    updateSheetsStatus("disconnected", "Realtime Database Disconnected", error.message || "Shared attendance records could not be loaded.");
   }
   refreshButton.disabled = false;
   renderRecords();
@@ -1188,7 +1239,7 @@ function renderRecords() {
   document.getElementById("total-count").textContent = attendanceRecords.length.toLocaleString("en-US");
   document.getElementById("latest-time").textContent = latestRecord ? compactTime(latestRecord.time) : "--";
   document.getElementById("latest-name").textContent = latestRecord?.name || "No check-ins yet";
-  document.getElementById("records-updated").textContent = sheetsConnected ? "Live Google Sheets records" : "No live records loaded";
+  document.getElementById("records-updated").textContent = sheetsConnected ? "Live shared database records" : "No live records loaded";
 }
 
 function compactTime(time) {
@@ -1504,7 +1555,13 @@ async function saveEventAttendance(event) {
     return;
   }
 
-  if (!sharedGraphicsSchedule.assignments.length) await loadDailyMainFillerStatus();
+  await databaseReady;
+  if (!database) {
+    eventError.textContent = "Configure Firebase before saving shared event attendance.";
+    return;
+  }
+  const scheduleSnapshot = await database.ref("graphicsSchedule").once("value");
+  sharedGraphicsSchedule = normalizeGraphicsSchedule(scheduleSnapshot.val());
   const mainFiller = document.getElementById("event-main-filler").value;
   const graphicsServerAssignment = getGraphicsAssignmentForDate(getTodayIsoDate());
 
@@ -1525,68 +1582,12 @@ async function saveEventAttendance(event) {
     attendees,
   };
 
-  if (GOOGLE_APPS_SCRIPT_URL.includes("PASTE_YOUR_")) {
-    eventAttendanceRecords.unshift(record);
-
-    let savedOnBrowser = false;
-    try {
-      localStorage.setItem(EVENT_ATTENDANCE_STORAGE_KEY, JSON.stringify(eventAttendanceRecords));
-      localStorage.removeItem(EVENT_DRAFT_STORAGE_KEY);
-      savedOnBrowser = true;
-    } catch (error) {
-      savedOnBrowser = false;
-    }
-
-    renderEventAttendance();
-    eventSubmissionLocation = null;
-    eventLocationCheckedAt = 0;
-    saveEventAttendanceButton.disabled = true;
-    checkEventLocationButton.disabled = false;
-    checkEventLocationButton.textContent = "Check Event Location";
-    setEventLocationStatus("idle", "📍", "Location not checked", "The person submitting this roster must be within the attendance area.");
-    document.getElementById("event-type").value = "";
-    document.getElementById("event-main-filler").value = "No";
-    eventAttendees.innerHTML = `
-      <div class="attendee-entry">
-        <label class="attendee-name-field"><span>Name</span><input class="attendee-name form-control" type="text" maxlength="80" placeholder="Enter a full name" required></label>
-        <label class="attendee-status-field"><span>Attendance</span><select class="attendee-status form-control"><option value="Present">Present</option><option value="Late">Late</option><option value="Absent">Absent</option></select></label>
-        <button class="remove-attendee" type="button" data-remove-attendee aria-label="Remove attendee" disabled>×</button>
-      </div>`;
-    showToast(savedOnBrowser ? "Event attendance saved on this browser." : "Event attendance is only available for this visit.");
-    return;
-  }
-
   try {
-    const response = await fetch(GOOGLE_APPS_SCRIPT_URL, {
-      method: "POST",
-      headers: { "Content-Type": "text/plain;charset=utf-8" },
-      body: JSON.stringify({
-        action: "saveEventAttendance",
-        eventType,
-        date: record.date,
-        mainFiller,
-        submitterDistance: record.submitterDistance,
-        graphicsServerName: record.graphicsServerName,
-        graphicsServerStatus: record.graphicsServerStatus,
-        attendees,
-      }),
-    });
-    const result = await response.json();
-
-    if (!response.ok || !result.success) {
-      throw new Error(result.message || "The event roster could not be saved.");
-    }
-
-    if (Array.isArray(result.eventAttendance)) {
-      eventAttendanceRecords = result.eventAttendance;
-      try {
-        localStorage.setItem(EVENT_ATTENDANCE_STORAGE_KEY, JSON.stringify(eventAttendanceRecords));
-        localStorage.removeItem(EVENT_DRAFT_STORAGE_KEY);
-      } catch (error) {
-        // The shared database remains the source of truth even if local storage is blocked.
-      }
-    }
-
+    await databaseReady;
+    if (!database) throw new Error("Configure Firebase before saving shared event attendance.");
+    await database.ref("eventAttendance").push().set(record);
+    removeLocalDraft(EVENT_DRAFT_STORAGE_KEY);
+    await loadSharedEventAttendance();
     renderEventAttendance();
     eventSubmissionLocation = null;
     eventLocationCheckedAt = 0;
@@ -1602,9 +1603,9 @@ async function saveEventAttendance(event) {
         <label class="attendee-status-field"><span>Attendance</span><select class="attendee-status form-control"><option value="Present">Present</option><option value="Late">Late</option><option value="Absent">Absent</option></select></label>
         <button class="remove-attendee" type="button" data-remove-attendee aria-label="Remove attendee" disabled>×</button>
       </div>`;
-    showToast("Event attendance saved and shared with all site visitors.");
+    showToast("Event attendance saved for all site visitors.");
   } catch (error) {
-    eventError.textContent = error.message || "The event roster could not be saved.";
+    eventError.textContent = error.message || "The event roster could not be saved to the shared database.";
   }
 }
 

@@ -6,6 +6,9 @@
   <meta name="theme-color" content="#f4f2ec">
   <title>Commission on Social Communication Ministry | Attendance</title>
   <link rel="stylesheet" href="style.css">
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-app-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-auth-compat.js" defer></script>
+  <script src="https://www.gstatic.com/firebasejs/10.14.1/firebase-database-compat.js" defer></script>
   <script src="script.js" defer></script>
 </head>
 <body>
@@ -177,7 +180,7 @@
         </div>
         <div class="sheets-status disconnected" id="sheets-status" role="status">
           <span class="connection-dot" aria-hidden="true"></span>
-          <div><strong id="sheets-title">Google Sheets Disconnected</strong><p id="sheets-message">Attendance records cannot currently be synchronized.</p></div>
+          <div><strong id="sheets-title">Realtime Database Disconnected</strong><p id="sheets-message">Attendance records cannot currently be synchronized.</p></div>
         </div>
         <section class="records-panel" aria-label="Attendance table">
           <div class="records-filters">
@@ -242,7 +245,7 @@
             </a>
             <label class="settings-field" for="location-radius">Allowed Radius (meters)<input id="location-radius" class="form-control" type="number" min="1" max="50000" value="100" required></label>
             <button class="button button-primary save-location-button" type="submit">Save Location</button>
-            <p class="settings-note">Location edits autosave as a draft on this browser and apply after Save Location. For official server checks, update the same values in <code>apps-script/Code.gs</code> and redeploy the Apps Script.</p>
+            <p class="settings-note">Location edits autosave as a draft on this browser and apply for all visitors after Save Location.</p>
           </form>
           <section class="graphics-schedule-panel" aria-labelledby="graphics-schedule-title">
             <div class="graphics-schedule-heading">
