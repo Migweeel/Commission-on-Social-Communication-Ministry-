@@ -1,0 +1,270 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="theme-color" content="#f4f2ec">
+  <title>Commission on Social Communication Ministry | Attendance</title>
+  <link rel="stylesheet" href="style.css">
+  <script src="script.js" defer></script>
+</head>
+<body>
+  <div class="site-shell">
+    <header class="site-header">
+      <a class="brand" href="index.html" aria-label="Commission on Social Communication Ministry Attendance home">
+        <img class="brand-mark" src="assets/main_logo.png" alt="">
+        <span class="brand-copy">
+          <strong>Commission on Social Communication Ministry</strong>
+          <small>Attendance</small>
+        </span>
+      </a>
+      <nav class="main-nav" aria-label="Main navigation">
+        <button class="nav-tab active" type="button" data-page="attendance">Attendance</button>
+        <button class="nav-tab" type="button" data-page="event-entry">Event Entry</button>
+        <button class="nav-tab" type="button" data-page="records">Records</button>
+        <button class="nav-tab" type="button" data-page="settings">Location</button>
+      </nav>
+    </header>
+
+    <main class="main-content" id="main-content">
+      <section class="page-view attendance-page" data-view="attendance">
+      <section class="attendance-card" aria-live="polite">
+        <div id="form-view">
+          <div class="card-heading">
+            <h1>Mark Your Attendance</h1>
+            <p>Enter your name and verify your location to record your attendance.</p>
+          </div>
+
+          <form id="attendance-form" novalidate>
+            <label class="field-label" for="name">Full Name</label>
+            <input
+              id="name"
+              class="form-control"
+              name="name"
+              type="text"
+              autocomplete="name"
+              maxlength="80"
+              placeholder="Enter your full name"
+              required
+            >
+            <p class="field-error" id="name-error" aria-live="polite"></p>
+
+            <label class="field-label main-filler-field" for="attendance-main-filler"><span>Is there a Main Filler?</span>
+              <select id="attendance-main-filler" class="form-control">
+                <option value="">Skip (optional)</option>
+                <option value="Yes">Yes</option>
+                <option value="No">No</option>
+              </select>
+            </label>
+            <p class="attendance-main-filler-note" id="attendance-main-filler-note" role="status" aria-live="polite">Only one attendee can answer this optional question each day. You can skip it and still submit attendance.</p>
+
+            <section class="location-status status-idle" id="location-status" role="status" aria-live="polite">
+              <span class="status-icon" id="status-icon" aria-hidden="true">📍</span>
+              <div class="status-copy">
+                <strong id="status-title">Location not checked</strong>
+                <p id="status-message">Your location is required before submitting attendance.</p>
+              </div>
+            </section>
+
+            <div class="location-metrics" id="location-metrics" hidden>
+              <div><strong id="distance-value">--</strong><span>Distance</span></div>
+              <div><strong id="radius-value">100 m</strong><span>Allowed radius</span></div>
+              <div><strong id="accuracy-value">--</strong><span>GPS accuracy</span></div>
+            </div>
+
+            <div class="button-stack">
+              <button class="button button-primary" id="check-button" type="button">
+                <span id="check-button-label">Check My Location</span>
+                <span class="button-arrow" aria-hidden="true">→</span>
+              </button>
+              <button class="button button-submit" id="submit-button" type="submit" disabled>
+                <span>Submit Attendance</span>
+                <span aria-hidden="true">✓</span>
+              </button>
+            </div>
+          </form>
+
+        </div>
+
+        <div class="flow-panel" id="permission-view" hidden>
+          <span class="large-symbol permission-symbol" id="permission-icon" aria-hidden="true">📍</span>
+          <p class="eyebrow">GPS permission</p>
+          <h2 id="permission-title">Location Access Required</h2>
+          <p class="flow-description" id="permission-message">This attendance system uses your current location to verify that you are within the designated attendance area.</p>
+          <div class="result-actions">
+            <button class="button button-primary" id="allow-location-button" type="button">Allow Location</button>
+            <button class="button button-secondary" id="retry-location-button" type="button" hidden>Try Again</button>
+          </div>
+        </div>
+
+        <div class="flow-panel" id="loading-view" hidden>
+          <span class="large-symbol loading-symbol" aria-hidden="true"><span class="spinner"></span></span>
+          <p class="eyebrow">GPS verification</p>
+          <h2 id="loading-title">Checking your location...</h2>
+          <p class="flow-description" id="loading-message">Please wait while we verify your current location.</p>
+          <div class="progress-list" id="progress-list">
+            <div class="progress-item complete"><span>✓</span>Name entered</div>
+            <div class="progress-item current"><span>•</span>Detecting location</div>
+            <div class="progress-item"><span>○</span>Checking attendance area</div>
+            <div class="progress-item"><span>○</span>Recording attendance</div>
+          </div>
+        </div>
+
+        <div class="flow-panel" id="result-view" hidden></div>
+      </section>
+
+      </section>
+
+      <section class="page-view event-entry-page" data-view="event-entry" hidden>
+        <div class="page-heading">
+          <div><p class="eyebrow">Ministry roll call</p><h1>Event Attendance</h1><p>Record attendance for an event, with a status for each person.</p></div>
+        </div>
+
+        <div class="event-entry-layout">
+          <form class="event-entry-form" id="event-entry-form" novalidate>
+            <label class="settings-field" for="event-type">Type of Event<input id="event-type" class="form-control" type="text" maxlength="100" placeholder="e.g. Sunday Mass, livestream, prayer vigil" required></label>
+            <div class="event-date-note"><span>Event date</span><strong id="event-date-display"></strong><small>Date is recorded automatically.</small></div>
+            <div class="event-location-reference">
+              <div><span>Attendance location</span><strong id="event-location-name"></strong><small id="event-location-radius"></small></div>
+              <a id="event-location-map-link" href="#" target="_blank" rel="noopener noreferrer">View map <span aria-hidden="true">↗</span></a>
+            </div>
+            <div class="event-location-check">
+              <div class="location-status status-idle" id="event-location-status" role="status" aria-live="polite">
+                <span class="status-icon" id="event-location-icon" aria-hidden="true">📍</span>
+                <div class="status-copy"><strong id="event-location-title">Location not checked</strong><p id="event-location-message">The person submitting this roster must be within the attendance area.</p></div>
+              </div>
+              <button class="button button-secondary event-location-button" id="check-event-location" type="button">Check Event Location</button>
+            </div>
+
+            <div class="attendee-heading"><div><h2>Attendees</h2><p>Add one row for each person.</p></div><button class="button button-secondary add-attendee-button" id="add-attendee" type="button"><span aria-hidden="true">+</span> Add Name</button></div>
+            <div class="attendee-list" id="event-attendees">
+              <div class="attendee-entry">
+                <label class="attendee-name-field"><span>Name</span><input class="attendee-name form-control" type="text" maxlength="80" placeholder="Enter a full name" required></label>
+                <label class="attendee-status-field"><span>Attendance</span><select class="attendee-status form-control"><option value="Present">Present</option><option value="Late">Late</option><option value="Absent">Absent</option></select></label>
+                <button class="remove-attendee" type="button" data-remove-attendee aria-label="Remove attendee" disabled>×</button>
+              </div>
+            </div>
+
+            <label class="settings-field main-filler-field" for="event-main-filler"><span>Is there a Main Filler?</span>
+              <select id="event-main-filler" class="form-control"><option value="No">No</option><option value="Yes">Yes</option></select>
+            </label>
+            <p class="field-error" id="event-error" aria-live="polite"></p>
+            <div class="event-form-actions"><button class="button button-primary" id="save-event-attendance" type="submit" disabled>Save Event Attendance</button></div>
+            <p class="settings-note">Event drafts and saved entries stay on this browser. Check GPS again after reopening.</p>
+          </form>
+
+          <section class="event-roster-panel" aria-label="Saved event attendance">
+            <div class="event-roster-heading"><div><p class="eyebrow">Local event log</p><h2>Saved Event Entries</h2></div><button class="button button-secondary" id="export-event-records" type="button">↓ Export Event Excel</button></div>
+            <div class="table-scroll"><table class="records-table event-records-table"><thead><tr><th>Event</th><th>Date</th><th>Graphics Server / Status</th><th>Name</th><th>Attendance</th></tr></thead><tbody id="event-records-body"></tbody></table></div>
+            <p class="event-storage-note" id="event-storage-note">Saved on this browser only.</p>
+          </section>
+        </div>
+      </section>
+
+      <section class="page-view records-page" data-view="records" hidden>
+        <div class="page-heading">
+          <div><p class="eyebrow">Attendance overview</p><h1>Attendance Records</h1><p>Review recent check-ins and find a record by name or date.</p></div>
+          <div class="page-actions">
+            <button class="button button-secondary" id="refresh-records" type="button">↻ <span>Refresh</span></button>
+            <button class="button button-secondary" id="export-csv" type="button">CSV</button>
+            <button class="button button-primary" id="export-records" type="button">↓ <span>Export Excel</span></button>
+          </div>
+        </div>
+        <div class="summary-grid" aria-label="Attendance summary">
+          <article class="summary-card"><span>Today's Attendance</span><strong id="today-count">0</strong><small>Present today</small></article>
+          <article class="summary-card"><span>Latest Attendance</span><strong id="latest-time">--</strong><small id="latest-name">No check-ins yet</small></article>
+          <article class="summary-card"><span>Total Records</span><strong id="total-count">0</strong><small>All attendance periods</small></article>
+        </div>
+        <div class="sheets-status disconnected" id="sheets-status" role="status">
+          <span class="connection-dot" aria-hidden="true"></span>
+          <div><strong id="sheets-title">Google Sheets Disconnected</strong><p id="sheets-message">Attendance records cannot currently be synchronized.</p></div>
+        </div>
+        <section class="records-panel" aria-label="Attendance table">
+          <div class="records-filters">
+            <label class="search-control"><span aria-hidden="true">⌕</span><input id="record-search" type="search" placeholder="Search by name" aria-label="Search by name"></label>
+            <label class="filter-control"><span>Date</span><input id="record-date" type="date" aria-label="Filter by date"></label>
+            <label class="filter-control"><span>Status</span><select id="record-status" aria-label="Filter by status"><option value="all">All statuses</option><option value="Present">Present</option><option value="Absent">Absent</option><option value="Late">Late</option></select></label>
+          </div>
+          <div class="table-scroll"><table class="records-table attendance-records-table">
+            <thead><tr><th>Name</th><th>Date</th><th>Time</th><th>Distance</th><th>Status</th><th>Graphics Server / Status</th></tr></thead>
+            <tbody id="records-body"></tbody>
+          </table></div>
+          <div class="table-footer"><span id="records-count">Showing 0 records</span><span id="records-updated">No live records loaded</span></div>
+        </section>
+        <section class="event-records-panel records-event-panel" aria-label="Saved event attendance">
+          <div class="event-roster-heading"><div><p class="eyebrow">Manual event roll call</p><h2>Event Entries</h2></div><span class="event-records-count" id="records-event-count">0 entries</span></div>
+          <div class="table-scroll"><table class="records-table event-records-table">
+            <thead><tr><th>Type of Event</th><th>Date</th><th>Graphics Server / Status</th><th>Name</th><th>Attendance</th></tr></thead>
+            <tbody id="records-event-body"></tbody>
+          </table></div>
+          <p class="event-storage-note" id="records-event-note">Saved on this browser only.</p>
+        </section>
+      </section>
+
+      <section class="page-view settings-page settings-password-required" data-view="settings" hidden>
+        <div class="page-heading">
+          <div><p class="eyebrow"></p><h1>Attendance Location</h1><p>Set the official check-in point and allowed distance.</p></div>
+          <button class="button button-secondary lock-location-button" id="lock-location-button" type="button" hidden>Lock Settings</button>
+        </div>
+        <section class="location-access" id="location-access">
+          <span class="access-mark" aria-hidden="true">◆</span>
+          <p class="eyebrow">Restricted settings</p>
+          <h2>Enter the location settings password</h2>
+          <p>Unlock to adjust the official attendance point and radius.</p>
+          <form id="location-unlock-form" novalidate>
+            <label class="settings-field" for="location-password">Settings Password<input id="location-password" class="form-control" type="password" autocomplete="current-password" required></label>
+            <p class="field-error" id="location-password-error" aria-live="polite"></p>
+            <button class="button button-primary unlock-location-button" type="submit">Unlock Location Settings</button>
+          </form>
+        </section>
+        <div class="settings-layout" id="location-settings-content" hidden>
+          <div class="map-frame" id="map-frame">
+            <div class="google-map-canvas" id="google-map" role="region" aria-label="Google map for selecting the attendance point"></div>
+            <div class="map-preview" id="map-fallback" aria-hidden="true">
+              <span class="map-tag" id="map-location-name">Main Office · Attendance Point</span>
+              <span class="map-park park-one"></span><span class="map-park park-two"></span>
+              <span class="map-radius" id="map-radius"><span class="map-pin">📍</span></span>
+              <span class="map-point-label" id="map-radius-label">100 m allowed radius</span>
+              <span class="map-scale" id="map-scale">100 m</span>
+            </div>
+            <div class="map-connect-message" id="map-connect-message" role="status" hidden></div>
+            <p class="map-instruction" id="map-instruction" hidden>Click the map to place the point, or drag the marker to fine-tune it.</p>
+          </div>
+          <form class="settings-panel" id="location-form">
+            <h2>Location settings</h2><p>Attendance is accepted only inside this GPS radius.</p>
+            <label class="settings-field" for="location-name">Location Name<input id="location-name" class="form-control" type="text" value="Commission on Social Communication Ministry" maxlength="60" required></label>
+            <div class="coordinate-fields">
+              <label class="settings-field" for="location-latitude">Latitude<input id="location-latitude" class="form-control" type="number" step="any" min="-90" max="90" value="14.5792427" required></label>
+              <label class="settings-field" for="location-longitude">Longitude<input id="location-longitude" class="form-control" type="number" step="any" min="-180" max="180" value="120.994319" required></label>
+            </div>
+            <a class="button button-secondary google-maps-button" id="google-maps-link" href="https://www.google.com/maps/search/?api=1&amp;query=14.5792427%2C120.994319" target="_blank" rel="noopener noreferrer">
+              Open in Google Maps <span aria-hidden="true">↗</span>
+            </a>
+            <label class="settings-field" for="location-radius">Allowed Radius (meters)<input id="location-radius" class="form-control" type="number" min="1" max="50000" value="100" required></label>
+            <button class="button button-primary save-location-button" type="submit">Save Location</button>
+            <p class="settings-note">Location edits autosave as a draft on this browser and apply after Save Location. For official server checks, update the same values in <code>apps-script/Code.gs</code> and redeploy the Apps Script.</p>
+          </form>
+          <section class="graphics-schedule-panel" aria-labelledby="graphics-schedule-title">
+            <div class="graphics-schedule-heading">
+              <div><p class="eyebrow">Graphics</p><h2 id="graphics-schedule-title">Main Filler Servers</h2><p>Assign each server for up to seven days. The Main Filler answer sets that server’s attendance.</p></div>
+              <button class="button button-secondary" id="add-graphics-server" type="button">+ Add Server</button>
+            </div>
+            <div class="graphics-schedule-section">
+              <h3>Server roster</h3>
+              <div class="graphics-server-list" id="graphics-server-list"></div>
+            </div>
+            <div class="graphics-schedule-section">
+              <div class="graphics-assignment-heading"><h3>Date assignments</h3><button class="button button-secondary" id="add-graphics-assignment" type="button">+ Assign Date</button></div>
+              <div class="graphics-assignment-list" id="graphics-assignment-list"></div>
+            </div>
+            <p class="settings-note">Save the shared Graphics schedule directly. The saved version is shared with all site visitors after you publish it.</p>
+            <button class="button button-primary graphics-schedule-save" id="save-graphics-schedule" type="button">Save Graphics Schedule</button>
+            <p class="graphics-schedule-status" id="graphics-schedule-status" role="status" aria-live="polite">Schedule is loading.</p>
+          </section>
+        </div>
+      </section>
+      <div class="toast" id="toast" role="status" hidden></div>
+    </main>
+  </div>
+</body>
+</html>
