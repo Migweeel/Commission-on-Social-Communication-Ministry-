@@ -10,11 +10,11 @@ const GOOGLE_MAPS_API_KEY = "PASTE_YOUR_GOOGLE_MAPS_API_KEY_HERE";
 
 // Copy these public web app values from Firebase project settings.
 const FIREBASE_CONFIG = {
-  apiKey: "PASTE_YOUR_FIREBASE_API_KEY_HERE",
-  authDomain: "PASTE_YOUR_FIREBASE_PROJECT_ID_HERE.firebaseapp.com",
-  databaseURL: "https://PASTE_YOUR_FIREBASE_DATABASE_NAME_HERE-default-rtdb.firebaseio.com",
-  projectId: "PASTE_YOUR_FIREBASE_PROJECT_ID_HERE",
-  appId: "PASTE_YOUR_FIREBASE_APP_ID_HERE",
+  apiKey: "AIzaSyB213xGR9yXCP6bKyt__OJVY-Z6wPWMnOo",
+  authDomain: "soccomattendance.firebaseapp.com",
+  databaseURL: "https://soccomattendance-default-rtdb.asia-southeast1.firebasedatabase.app",
+  projectId: "soccomattendance",
+  appId: "1:575423405755:web:ecb9a16c08ee8ecaa5539e",
 };
 const LOCATION_STORAGE_KEY = "geoattend-location";
 const ATTENDANCE_DRAFT_STORAGE_KEY = "geoattend-attendance-draft";
@@ -1555,36 +1555,30 @@ async function saveEventAttendance(event) {
     return;
   }
 
-  await databaseReady;
-  if (!database) {
-    eventError.textContent = "Configure Firebase before saving shared event attendance.";
-    return;
-  }
-  const scheduleSnapshot = await database.ref("graphicsSchedule").once("value");
-  sharedGraphicsSchedule = normalizeGraphicsSchedule(scheduleSnapshot.val());
-  const mainFiller = document.getElementById("event-main-filler").value;
-  const graphicsServerAssignment = getGraphicsAssignmentForDate(getTodayIsoDate());
-
-  const record = {
-    eventType,
-    date: new Intl.DateTimeFormat("en-US", {
-      timeZone: "Asia/Manila",
-      month: "2-digit",
-      day: "2-digit",
-      year: "numeric",
-    }).format(new Date()),
-    mainFiller,
-    submitterDistance: Math.round(eventSubmissionLocation.distance),
-    graphicsServerName: graphicsServerAssignment?.serverName || "",
-    graphicsServerStatus: graphicsServerAssignment
-      ? mainFiller === "Yes" ? "Present" : "Absent"
-      : "",
-    attendees,
-  };
-
   try {
     await databaseReady;
     if (!database) throw new Error("Configure Firebase before saving shared event attendance.");
+    const scheduleSnapshot = await database.ref("graphicsSchedule").once("value");
+    sharedGraphicsSchedule = normalizeGraphicsSchedule(scheduleSnapshot.val());
+    const mainFiller = document.getElementById("event-main-filler").value;
+    const graphicsServerAssignment = getGraphicsAssignmentForDate(getTodayIsoDate());
+    const record = {
+      eventType,
+      date: new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Manila",
+        month: "2-digit",
+        day: "2-digit",
+        year: "numeric",
+      }).format(new Date()),
+      mainFiller,
+      submitterDistance: Math.round(eventSubmissionLocation.distance),
+      graphicsServerName: graphicsServerAssignment?.serverName || "",
+      graphicsServerStatus: graphicsServerAssignment
+        ? mainFiller === "Yes" ? "Present" : "Absent"
+        : "",
+      attendees,
+    };
+
     await database.ref("eventAttendance").push().set(record);
     removeLocalDraft(EVENT_DRAFT_STORAGE_KEY);
     await loadSharedEventAttendance();
