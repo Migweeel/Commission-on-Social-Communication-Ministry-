@@ -1,10 +1,10 @@
 // Set these to the official check-in point. Keep them aligned with script.js.
-const ATTENDANCE_LATITUDE = 14.5995;
-const ATTENDANCE_LONGITUDE = 120.9842;
+const ATTENDANCE_LATITUDE = 14.5792427;
+const ATTENDANCE_LONGITUDE = 120.994319;
 const ATTENDANCE_RADIUS = 100;
 
 // Copy the spreadsheet ID from the spreadsheet URL.
-const SPREADSHEET_ID = "PASTE_YOUR_SPREADSHEET_ID_HERE";
+const SPREADSHEET_ID = "1ZxPuNIl70dFqhqwX7n45PJAhtRAPIJ07-h69zmgiwNU";
 const SHEET_NAME = "Attendance";
 const EVENT_ATTENDANCE_SHEET_NAME = "Event Attendance";
 const GRAPHICS_SCHEDULE_SHEET_NAME = "Graphics Schedule";
