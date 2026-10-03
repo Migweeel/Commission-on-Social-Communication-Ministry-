@@ -1665,11 +1665,25 @@ function exportRecords() {
     const secondDate = parseAttendanceDate(second.date);
     return firstDate - secondDate || timeSortValue(first.time) - timeSortValue(second.time);
   });
-  const months = [...new Set(records.map((record) => {
+  const eventRecords = eventAttendanceRecords.slice().sort((first, second) =>
+    parseAttendanceDate(first.date) - parseAttendanceDate(second.date) ||
+    timeSortValue(first.time || "") - timeSortValue(second.time || ""),
+  );
+  const eventEntries = eventRecords.flatMap((eventRecord) =>
+    eventRecord.attendees.map((attendee, attendeeIndex) => ({
+      eventRecord,
+      attendee,
+      attendeeIndex,
+    })),
+  );
+  const exportDates = [...records, ...eventRecords].map((record) => {
     const date = parseAttendanceDate(record.date);
-    return `${date.getFullYear()}-${date.getMonth()}`;
-  }))];
-  const titleDate = records.length ? parseAttendanceDate(records[0].date) : new Date();
+    return { date, month: `${date.getFullYear()}-${date.getMonth()}` };
+  });
+  const months = [...new Set(exportDates.map(({ month }) => month))];
+  const titleDate = exportDates.length
+    ? exportDates.map(({ date }) => date).sort((first, second) => first - second)[0]
+    : new Date();
   const monthTitle = months.length <= 1
     ? titleDate.toLocaleDateString("en-US", { month: "long", year: "numeric" })
     : `Ministry Attendance ${titleDate.getFullYear()}`;
@@ -1695,61 +1709,112 @@ function exportRecords() {
     graphicsAttendanceByDate.set(record.date, getGraphicsAttendanceForDate(record.date));
   });
 
-  const dataRows = records.map((record, index) => {
-    const date = parseAttendanceDate(record.date);
-    const dateKey = record.date;
-    const time = formatExportTime(record.time);
-    const timeGroup = `${dateKey}|${time}`;
-    const status = String(record.status || "Present").toLocaleLowerCase();
-    const displayDate = date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
-    const statusClass = status === "absent" ? "absent" : status === "late" ? "late" : "present";
+  const rowCount = Math.max(records.length, eventEntries.length);
+  const dataRows = Array.from({ length: rowCount }, (_, index) => {
+    const record = records[index];
+    const eventEntry = eventEntries[index];
     const cells = [];
 
-    if (dateKey !== previousDate) {
-      cells.push(`<td class="date-cell" rowspan="${dateCounts.get(dateKey)}">${escapeHtml(displayDate)}</td>`);
+    if (!record) {
+      cells.push('<td colspan="5"></td><td class="gutter-cell"></td><td colspan="4"></td>');
+    } else {
+      const date = parseAttendanceDate(record.date);
+      const dateKey = record.date;
+      const time = formatExportTime(record.time);
+      const timeGroup = `${dateKey}|${time}`;
+      const status = String(record.status || "Present").toLocaleLowerCase();
+      const displayDate = date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+      const statusClass = status === "absent" ? "absent" : status === "late" ? "late" : "present";
+
+      if (dateKey !== previousDate) {
+        cells.push(`<td class="date-cell" rowspan="${dateCounts.get(dateKey)}">${escapeHtml(displayDate)}</td>`);
+      }
+      if (timeGroup !== previousTimeGroup) {
+        cells.push(`<td class="time-cell" rowspan="${timeCounts.get(timeGroup)}">${escapeHtml(time)}</td>`);
+      }
+      cells.push(`<td class="name-cell name-${index % 2}">${escapeHtml(record.name)}</td>`);
+      cells.push(`<td class="attendance-cell ${statusClass}" style="${attendanceStyles[statusClass]}">${escapeHtml(status)}</td>`);
+      cells.push(statusClass === "absent"
+        ? '<td class="warning-cell absent-warning" style="background-color:#e12620"></td>'
+        : statusClass === "present"
+          ? '<td class="warning-cell present-warning"></td>'
+          : '<td class="warning-cell"></td>');
+      cells.push('<td class="gutter-cell"></td>');
+      const graphicsAttendance = graphicsAttendanceByDate.get(dateKey);
+      if (!graphicsAttendance) {
+        cells.push('<td></td><td></td><td></td><td></td>');
+      } else if (dateKey !== previousDate) {
+        const rowSpan = dateCounts.get(dateKey);
+        const graphicsStatusClass = graphicsAttendance.attendance;
+        cells.push(`<td class="date-cell" rowspan="${rowSpan}">${escapeHtml(displayDate)}</td>`);
+        cells.push(`<td class="name-cell name-${index % 2}" rowspan="${rowSpan}">${escapeHtml(graphicsAttendance.serverName)}</td>`);
+        const graphicsStatusStyle = attendanceStyles[graphicsStatusClass];
+        cells.push(`<td class="attendance-cell ${graphicsStatusClass}"${graphicsStatusStyle ? ` style="${graphicsStatusStyle}"` : ""} rowspan="${rowSpan}">${escapeHtml(graphicsAttendance.attendance)}</td>`);
+        cells.push(graphicsStatusClass === "absent"
+          ? `<td class="warning-cell absent-warning" style="background-color:#e12620" rowspan="${rowSpan}"></td>`
+          : graphicsStatusClass === "present"
+            ? `<td class="warning-cell present-warning" rowspan="${rowSpan}"></td>`
+            : `<td class="warning-cell" rowspan="${rowSpan}"></td>`);
+      }
+
+      previousDate = dateKey;
+      previousTimeGroup = timeGroup;
     }
-    if (timeGroup !== previousTimeGroup) {
-      cells.push(`<td class="time-cell" rowspan="${timeCounts.get(timeGroup)}">${escapeHtml(time)}</td>`);
-    }
-    cells.push(`<td class="name-cell name-${index % 2}">${escapeHtml(record.name)}</td>`);
-    cells.push(`<td class="attendance-cell ${statusClass}" style="${attendanceStyles[statusClass]}">${escapeHtml(status)}</td>`);
-    cells.push(statusClass === "absent"
-      ? '<td class="warning-cell absent-warning" style="background-color:#e12620"></td>'
-      : statusClass === "present"
-        ? '<td class="warning-cell present-warning"></td>'
-        : '<td class="warning-cell"></td>');
     cells.push('<td class="gutter-cell"></td>');
-    const graphicsAttendance = graphicsAttendanceByDate.get(dateKey);
-    if (!graphicsAttendance) {
-      cells.push('<td></td><td></td><td></td><td></td>');
-    } else if (dateKey !== previousDate) {
-      const rowSpan = dateCounts.get(dateKey);
-      const graphicsStatusClass = graphicsAttendance.attendance;
+
+    if (!eventEntry) {
+      cells.push('<td colspan="7"></td>');
+    } else if (eventEntry.attendeeIndex === 0) {
+      const { eventRecord, attendee } = eventEntry;
+      const attendees = eventRecord.attendees;
+      const rowSpan = attendees.length;
+      const date = parseAttendanceDate(eventRecord.date);
+      const displayDate = date.toLocaleDateString("en-US", { weekday: "long", month: "long", day: "numeric" });
+      const time = eventRecord.time ? formatExportTime(eventRecord.time) : "--";
+      const status = String(attendee.status || "Present").toLocaleLowerCase();
+      const statusClass = ["present", "absent", "late"].includes(status) ? status : "present";
+      const graphicsServer = getEventGraphicsServerData(eventRecord);
+      const graphicsStatus = graphicsServer.serverName
+        ? `${graphicsServer.serverName}${graphicsServer.serverStatus ? ` / ${graphicsServer.serverStatus}` : ""}`
+        : "—";
+      const style = attendanceStyles[statusClass];
+
+      cells.push(`<td class="event-type-cell" rowspan="${rowSpan}">${escapeHtml(eventRecord.eventType)}</td>`);
       cells.push(`<td class="date-cell" rowspan="${rowSpan}">${escapeHtml(displayDate)}</td>`);
-      cells.push(`<td class="name-cell name-${index % 2}" rowspan="${rowSpan}">${escapeHtml(graphicsAttendance.serverName)}</td>`);
-      const graphicsStatusStyle = attendanceStyles[graphicsStatusClass];
-      cells.push(`<td class="attendance-cell ${graphicsStatusClass}"${graphicsStatusStyle ? ` style="${graphicsStatusStyle}"` : ""} rowspan="${rowSpan}">${escapeHtml(graphicsAttendance.attendance)}</td>`);
-      cells.push(graphicsStatusClass === "absent"
-        ? `<td class="warning-cell absent-warning" style="background-color:#e12620" rowspan="${rowSpan}"></td>`
-        : graphicsStatusClass === "present"
-          ? `<td class="warning-cell present-warning" rowspan="${rowSpan}"></td>`
-          : `<td class="warning-cell" rowspan="${rowSpan}"></td>`);
+      cells.push(`<td class="time-cell" rowspan="${rowSpan}">${escapeHtml(time)}</td>`);
+      cells.push(`<td class="graphics-server-cell" rowspan="${rowSpan}">${escapeHtml(graphicsStatus)}</td>`);
+      cells.push(`<td class="name-cell name-${index % 2}">${escapeHtml(attendee.name)}</td>`);
+      cells.push(`<td class="attendance-cell ${statusClass}" style="${style}">${escapeHtml(status)}</td>`);
+      cells.push(statusClass === "absent"
+        ? '<td class="warning-cell absent-warning" style="background-color:#e12620"></td>'
+        : statusClass === "present"
+          ? '<td class="warning-cell present-warning"></td>'
+          : '<td class="warning-cell"></td>');
+    } else {
+      const { attendee } = eventEntry;
+      const status = String(attendee.status || "Present").toLocaleLowerCase();
+      const statusClass = ["present", "absent", "late"].includes(status) ? status : "present";
+      cells.push(`<td class="name-cell name-${index % 2}">${escapeHtml(attendee.name)}</td>`);
+      cells.push(`<td class="attendance-cell ${statusClass}" style="${attendanceStyles[statusClass]}">${escapeHtml(status)}</td>`);
+      cells.push(statusClass === "absent"
+        ? '<td class="warning-cell absent-warning" style="background-color:#e12620"></td>'
+        : statusClass === "present"
+          ? '<td class="warning-cell present-warning"></td>'
+          : '<td class="warning-cell"></td>');
     }
 
-    previousDate = dateKey;
-    previousTimeGroup = timeGroup;
     return `<tr>${cells.join("")}</tr>`;
   });
 
-  const emptyRow = '<tr><td class="empty-cell" colspan="5">No attendance records match these filters.</td><td class="gutter-cell"></td><td class="empty-cell" colspan="4"></td></tr>';
+  const emptyRow = '<tr><td class="empty-cell" colspan="5">No attendance records match these filters.</td><td class="gutter-cell"></td><td class="empty-cell" colspan="4"></td><td class="gutter-cell"></td><td class="empty-cell" colspan="7">No event entries match these filters.</td></tr>';
   const html = `<!doctype html>
 <html xmlns:o="urn:schemas-microsoft-com:office:office" xmlns:x="urn:schemas-microsoft-com:office:excel">
 <head><meta charset="utf-8"><meta http-equiv="Content-Type" content="text/html; charset=utf-8"><title>${escapeHtml(monthTitle)}</title>
 <style>
-body{font-family:Arial,sans-serif;color:#201d18}table{border-collapse:collapse;table-layout:fixed;width:1404px}col.date{width:175px}col.time{width:90px}col.name{width:240px}col.attendance{width:120px}col.gutter{width:24px}col.warning{width:110px}th,td{border:1px solid #17140f;padding:5px 8px;vertical-align:middle;white-space:normal;overflow-wrap:break-word;font-size:11px}.month-title{background:#fff0c2;font-size:15px;font-style:italic;text-align:center;height:28px}.graphics-title{background:#9400d3;color:#fff;font-size:13px;font-style:italic;text-align:center}.column-heading{background:#ffedb5;font-weight:bold;text-align:center}.gutter-cell{border:0;background:#fff}.date-cell,.time-cell{background:#fff8e5;text-align:center}.name-cell{font-family:Georgia,serif;text-align:center}.name-0{background:#eee5f6}.name-1{background:#fff}.attendance-cell{text-align:center;text-transform:lowercase;font-style:italic;font-weight:bold}.present{background-color:#c8eccd;color:#155724}.absent{background-color:#e12620;color:#fff}.late{background-color:#ffe5a3;color:#684600}.warning-cell{text-align:center;font-weight:bold}.warning-cell.absent-warning{background-color:#e12620;color:#fff}.empty-cell{height:30px;color:#777;text-align:center}
-</style></head><body><table><colgroup><col class="date"><col class="time"><col class="name"><col class="attendance"><col class="warning"><col class="gutter"><col class="date"><col class="name"><col class="attendance"><col class="warning"></colgroup>
-<tr><th class="month-title" colspan="5" style="mso-number-format:'\\@'">${escapeHtml(monthTitle)}</th><td class="gutter-cell"></td><th class="graphics-title" colspan="4">GRAPHICS ATTENDANCE</th></tr>
-<tr><th class="column-heading">Date</th><th class="column-heading">Time</th><th class="column-heading">Name</th><th class="column-heading">Attendance</th><th class="column-heading">WARNING</th><td class="gutter-cell"></td><th class="column-heading">Date</th><th class="column-heading">Name</th><th class="column-heading">Attendance</th><th class="column-heading">WARNING</th></tr>
+body{font-family:Arial,sans-serif;color:#201d18}table{border-collapse:collapse;table-layout:fixed;width:2523px}col.date{width:175px}col.time{width:90px}col.name{width:240px}col.attendance{width:120px}col.warning{width:110px}col.gutter{width:24px}col.event-type{width:190px}col.graphics-server{width:170px}th,td{border:1px solid #17140f;padding:5px 8px;vertical-align:middle;white-space:normal;overflow-wrap:break-word;font-size:11px}.month-title{background:#fff0c2;font-size:15px;font-style:italic;text-align:center;height:28px}.graphics-title{background:#9400d3;color:#fff;font-size:13px;font-style:italic;text-align:center}.event-title{background:#245b8f;color:#fff;font-size:13px;font-style:italic;text-align:center}.column-heading{background:#ffedb5;font-weight:bold;text-align:center}.gutter-cell{border:0;background:#fff}.date-cell,.time-cell{background:#fff8e5;text-align:center}.event-type-cell{background:#fff8e5}.graphics-server-cell{text-align:center}.name-cell{font-family:Georgia,serif;text-align:center}.name-0{background:#eee5f6}.name-1{background:#fff}.attendance-cell{text-align:center;text-transform:lowercase;font-style:italic;font-weight:bold}.present{background-color:#c8eccd;color:#155724}.absent{background-color:#e12620;color:#fff}.late{background-color:#ffe5a3;color:#684600}.warning-cell{text-align:center;font-weight:bold}.warning-cell.absent-warning{background-color:#e12620;color:#fff}.warning-cell.present-warning{background-color:#c8eccd;color:#155724}.empty-cell{height:30px;color:#777;text-align:center}
+</style></head><body><table><colgroup><col class="date"><col class="time"><col class="name"><col class="attendance"><col class="warning"><col class="gutter"><col class="date"><col class="name"><col class="attendance"><col class="warning"><col class="gutter"><col class="event-type"><col class="date"><col class="time"><col class="graphics-server"><col class="name"><col class="attendance"><col class="warning"></colgroup>
+<tr><th class="month-title" colspan="5" style="mso-number-format:'\\@'">${escapeHtml(monthTitle)}</th><td class="gutter-cell"></td><th class="graphics-title" colspan="4">GRAPHICS ATTENDANCE</th><td class="gutter-cell"></td><th class="event-title" colspan="7">EVENT ENTRIES</th></tr>
+<tr><th class="column-heading">Date</th><th class="column-heading">Time</th><th class="column-heading">Name</th><th class="column-heading">Attendance</th><th class="column-heading">WARNING</th><td class="gutter-cell"></td><th class="column-heading">Date</th><th class="column-heading">Name</th><th class="column-heading">Attendance</th><th class="column-heading">WARNING</th><td class="gutter-cell"></td><th class="column-heading">Event</th><th class="column-heading">Date</th><th class="column-heading">Time</th><th class="column-heading">Graphics Server / Status</th><th class="column-heading">Name</th><th class="column-heading">Attendance</th><th class="column-heading">WARNING</th></tr>
 ${dataRows.length ? dataRows.join("\r\n") : emptyRow}
 </table></body></html>`;
   const url = URL.createObjectURL(new Blob(["\ufeff", html], { type: "application/vnd.ms-excel;charset=utf-8" }));
@@ -2067,6 +2132,13 @@ async function saveEventAttendance(event) {
       graphicsServerStatus: graphicsServerAssignment && mainFiller
         ? mainFiller === "Yes" ? "Present" : "Absent"
         : "",
+      time: new Intl.DateTimeFormat("en-US", {
+        timeZone: "Asia/Manila",
+        hour: "2-digit",
+        minute: "2-digit",
+        second: "2-digit",
+        hour12: true,
+      }).format(new Date()),
       attendees,
     };
 
@@ -2130,12 +2202,13 @@ function exportEventAttendance() {
       const statusClass = status === "absent" ? "absent" : status === "late" ? "late" : "present";
       const graphicsServer = getEventGraphicsServerData(eventRecord);
       const serverStatus = graphicsServer.serverName ? `${graphicsServer.serverName} / ${graphicsServer.serverStatus}` : "—";
-      return `<tr><td class="event-cell">${escapeHtml(eventRecord.eventType)}</td><td class="date-cell">${escapeHtml(eventRecord.date)}</td><td class="filler-cell">${escapeHtml(serverStatus)}</td><td class="name-cell name-${index % 2}">${escapeHtml(attendee.name)}</td><td class="attendance-cell ${statusClass}">${escapeHtml(status)}</td></tr>`;
+      const time = eventRecord.time ? formatExportTime(eventRecord.time) : "--";
+      return `<tr><td class="event-cell">${escapeHtml(eventRecord.eventType)}</td><td class="date-cell">${escapeHtml(eventRecord.date)}</td><td class="time-cell">${escapeHtml(time)}</td><td class="filler-cell">${escapeHtml(serverStatus)}</td><td class="name-cell name-${index % 2}">${escapeHtml(attendee.name)}</td><td class="attendance-cell ${statusClass}">${escapeHtml(status)}</td><td class="warning-cell ${statusClass === "absent" ? "absent-warning" : statusClass === "present" ? "present-warning" : ""}"></td></tr>`;
     }),
   );
   const html = `<!doctype html><html><head><meta charset="utf-8"><style>
-    body{font-family:Arial,sans-serif;color:#201d18}table{border-collapse:collapse;table-layout:fixed;width:900px}col.event{width:290px}col.date{width:175px}col.name{width:240px}col.status{width:120px}col.filler{width:120px}th,td{border:1px solid #17140f;padding:7px 10px;vertical-align:middle;white-space:normal;overflow-wrap:break-word;font-size:11px}.title{background:#fff0c2;font-size:15px;font-style:italic;text-align:center}.heading{background:#ffedb5;font-weight:bold;text-align:center}.event-cell{background:#fff8e5}.date-cell{text-align:center;background:#fff8e5}.name-cell{font-family:Georgia,serif;text-align:center}.name-0{background:#eee5f6}.name-1{background:#fff}.attendance-cell{text-align:center;font-style:italic;font-weight:bold;text-transform:lowercase}.present{background:#c8eccd;color:#155724}.late{background:#ffe5a3;color:#684600}.absent{background:#e12620;color:#fff}.filler-cell{text-align:center}
-  </style></head><body><table><colgroup><col class="event"><col class="date"><col class="filler"><col class="name"><col class="status"></colgroup><tr><th class="title" colspan="5">${escapeHtml(monthTitle)}</th></tr><tr><th class="heading">Type of Event</th><th class="heading">Date</th><th class="heading">Graphics Server / Status</th><th class="heading">Name</th><th class="heading">Attendance</th></tr>${rows.length ? rows.join("") : '<tr><td colspan="5">No event attendance has been saved.</td></tr>'}</table></body></html>`;
+    body{font-family:Arial,sans-serif;color:#201d18}table{border-collapse:collapse;table-layout:fixed;width:1120px}col.event{width:230px}col.date{width:155px}col.time{width:90px}col.name{width:210px}col.status{width:115px}col.warning{width:100px}col.filler{width:220px}th,td{border:1px solid #17140f;padding:7px 10px;vertical-align:middle;white-space:normal;overflow-wrap:break-word;font-size:11px}.title{background:#fff0c2;font-size:15px;font-style:italic;text-align:center}.heading{background:#ffedb5;font-weight:bold;text-align:center}.event-cell{background:#fff8e5}.date-cell,.time-cell{text-align:center;background:#fff8e5}.name-cell{font-family:Georgia,serif;text-align:center}.name-0{background:#eee5f6}.name-1{background:#fff}.attendance-cell{text-align:center;font-style:italic;font-weight:bold;text-transform:lowercase}.present{background:#c8eccd;color:#155724}.late{background:#ffe5a3;color:#684600}.absent{background:#e12620;color:#fff}.filler-cell{text-align:center}.warning-cell{text-align:center;font-weight:bold}.warning-cell.absent-warning{background:#e12620}.warning-cell.present-warning{background:#c8eccd;color:#155724}
+  </style></head><body><table><colgroup><col class="event"><col class="date"><col class="time"><col class="filler"><col class="name"><col class="status"><col class="warning"></colgroup><tr><th class="title" colspan="7">${escapeHtml(monthTitle)}</th></tr><tr><th class="heading">Type of Event</th><th class="heading">Date</th><th class="heading">Time</th><th class="heading">Graphics Server / Status</th><th class="heading">Name</th><th class="heading">Attendance</th><th class="heading">WARNING</th></tr>${rows.length ? rows.join("") : '<tr><td colspan="7">No event attendance has been saved.</td></tr>'}</table></body></html>`;
   const url = URL.createObjectURL(new Blob(["\ufeff", html], { type: "application/vnd.ms-excel;charset=utf-8" }));
   const link = document.createElement("a");
   link.href = url;
