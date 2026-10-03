@@ -32,6 +32,114 @@ button:disabled { cursor: not-allowed; }
 [hidden] { display: none !important; }
 
 .site-shell { min-height: 100vh; display: flex; flex-direction: column; }
+.opening-screen {
+  position: fixed;
+  z-index: 10000;
+  inset: 0;
+  overflow: hidden;
+  display: grid;
+  place-items: center;
+  background: radial-gradient(ellipse at 50% 42%, #fff 0%, #f8f7f2 56%, #eeece5 100%);
+  opacity: 1;
+  transition: opacity 1.2s ease;
+}
+.opening-screen::after {
+  position: absolute;
+  z-index: 1;
+  inset: 0;
+  background: radial-gradient(ellipse at 50% 48%, rgba(255, 255, 255, .18), rgba(231, 222, 199, .16));
+  animation: opening-ambient 5s ease-in-out infinite alternate;
+  content: "";
+}
+.opening-screen.is-leaving { opacity: 0; pointer-events: none; }
+.opening-screen.is-leaving .opening-brand { opacity: 0; transform: translateY(-10px) scale(.98); }
+.opening-brand {
+  position: relative;
+  z-index: 2;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  padding: 32px;
+  color: #25241f;
+  text-align: center;
+  animation: opening-brand-enter .9s cubic-bezier(.2, .75, .25, 1) both;
+  transition: opacity .7s ease, transform .9s ease;
+}
+.opening-logo-frame {
+  position: relative;
+  width: clamp(104px, 19vmin, 156px);
+  aspect-ratio: 1;
+  display: grid;
+  place-items: center;
+  margin-bottom: 28px;
+  border: 1px solid #b08a43;
+  border-radius: 50%;
+  background: rgba(255, 255, 255, .96);
+  box-shadow: 0 0 0 8px rgba(255, 255, 255, .4), 0 14px 42px rgba(41, 36, 27, .2);
+  animation: opening-logo-glow 2.8s ease-in-out infinite;
+}
+.opening-logo-frame::before {
+  position: absolute;
+  inset: -14px;
+  border: 1px solid rgba(176, 138, 67, .55);
+  border-radius: 50%;
+  animation: opening-logo-ring 2.8s ease-out infinite;
+  content: "";
+}
+.opening-logo { width: 100%; height: 100%; padding: 9px; border-radius: 50%; object-fit: contain; }
+.opening-brand-title {
+  max-width: min(100%, 560px);
+  margin: 0 0 15px;
+  font-family: "Palatino Linotype", "Book Antiqua", Georgia, serif;
+  font-size: clamp(20px, 4vw, 34px);
+  font-weight: 700;
+  line-height: 1.2;
+  text-shadow: 0 1px 18px rgba(255, 255, 255, .75);
+}
+.opening-brand-divider { width: 48px; height: 2px; margin-bottom: 12px; background: var(--gold); }
+.opening-brand-subtitle {
+  margin: 0;
+  color: #806126;
+  font-size: 11px;
+  font-weight: 700;
+  letter-spacing: .28em;
+  text-transform: uppercase;
+}
+@keyframes opening-brand-enter {
+  from { opacity: 0; transform: translateY(20px) scale(.97); filter: blur(5px); }
+  to { opacity: 1; transform: translateY(0) scale(1); filter: blur(0); }
+}
+@keyframes opening-ambient {
+  from { opacity: .58; }
+  to { opacity: 1; }
+}
+@keyframes opening-logo-glow {
+  0%, 100% { box-shadow: 0 0 0 8px rgba(255, 255, 255, .4), 0 14px 42px rgba(41, 36, 27, .2); }
+  50% { box-shadow: 0 0 0 11px rgba(255, 255, 255, .32), 0 17px 48px rgba(41, 36, 27, .24); }
+}
+@keyframes opening-logo-ring {
+  0% { opacity: .65; transform: scale(.94); }
+  100% { opacity: 0; transform: scale(1.12); }
+}
+html[data-theme="dark"] .opening-screen {
+  background: radial-gradient(ellipse at 50% 42%, #292a2e 0%, #1b1d22 56%, #11141a 100%);
+}
+html[data-theme="dark"] .opening-screen::after {
+  background: radial-gradient(ellipse at 50% 48%, rgba(78, 70, 53, .12), rgba(8, 10, 14, .28));
+}
+html[data-theme="dark"] .opening-brand { color: #f0eee8; }
+html[data-theme="dark"] .opening-logo-frame {
+  border-color: #d1ad63;
+  background: #f8f7f2;
+  animation-name: opening-logo-glow-dark;
+}
+html[data-theme="dark"] .opening-logo-frame::before { border-color: rgba(209, 173, 99, .55); }
+html[data-theme="dark"] .opening-brand-title { text-shadow: 0 1px 18px rgba(0, 0, 0, .55); }
+html[data-theme="dark"] .opening-brand-subtitle { color: #d1ad63; }
+@keyframes opening-logo-glow-dark {
+  0%, 100% { box-shadow: 0 0 0 8px rgba(255, 255, 255, .08), 0 14px 42px rgba(0, 0, 0, .42); }
+  50% { box-shadow: 0 0 0 11px rgba(255, 255, 255, .12), 0 17px 48px rgba(0, 0, 0, .5); }
+}
 .site-header {
   height: 74px;
   display: flex;

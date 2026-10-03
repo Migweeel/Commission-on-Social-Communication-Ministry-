@@ -25,6 +25,34 @@ const EVENT_DRAFT_STORAGE_KEY = "ministry-event-attendance-draft";
 const GRAPHICS_SCHEDULE_DRAFT_KEY = "geoattend-graphics-schedule-draft";
 const THEME_STORAGE_KEY = "geoattend-theme";
 
+const openingScreen = document.getElementById("opening-screen");
+const siteShell = document.querySelector(".site-shell");
+let openingTimer;
+let openingTransitionTimer;
+
+function finishOpening() {
+  window.clearTimeout(openingTransitionTimer);
+  openingScreen.remove();
+  siteShell.inert = false;
+}
+
+function dismissOpening() {
+  if (!openingScreen || openingScreen.classList.contains("is-leaving")) return;
+  window.clearTimeout(openingTimer);
+  openingScreen.classList.add("is-leaving");
+  openingScreen.addEventListener("transitionend", finishOpening, { once: true });
+  openingTransitionTimer = window.setTimeout(finishOpening, 1500);
+}
+
+if (openingScreen && siteShell) {
+  if (window.matchMedia("(prefers-reduced-motion: reduce)").matches) {
+    openingScreen.remove();
+    siteShell.inert = false;
+  } else {
+    openingTimer = window.setTimeout(dismissOpening, 2400);
+  }
+}
+
 async function loadSharedEventAttendance() {
   try {
     await databaseReady;
