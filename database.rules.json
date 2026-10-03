@@ -1,0 +1,77 @@
+{
+  "rules": {
+    ".read": false,
+    ".write": false,
+    "attendance": {
+      ".read": "auth != null",
+      ".indexOn": ["date"],
+      ".write": "auth != null && !newData.exists()",
+      "$record": {
+        ".write": "auth != null && !data.exists() && (!newData.child('mainFiller').exists() || newData.child('mainFiller').val() == '' || (root.child('mainFillerAnswers').child(newData.child('mainFillerDate').val()).child('answer').val() == newData.child('mainFiller').val() && root.child('mainFillerAnswers').child(newData.child('mainFillerDate').val()).child('name').val() == newData.child('name').val() && root.child('mainFillerAnswers').child(newData.child('mainFillerDate').val()).child('serverName').val() == newData.child('graphicsServerName').val() && root.child('mainFillerAnswers').child(newData.child('mainFillerDate').val()).child('recordType').val() == 'attendance' && root.child('mainFillerAnswers').child(newData.child('mainFillerDate').val()).child('recordId').val() == $record))",
+        ".validate": "newData.hasChildren(['name', 'date', 'time', 'latitude', 'longitude', 'distance', 'status'])",
+        "name": { ".validate": "newData.isString() && newData.val().length <= 80" },
+        "date": { ".validate": "newData.isString()" },
+        "time": { ".validate": "newData.isString()" },
+        "latitude": { ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90" },
+        "longitude": { ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180" },
+        "distance": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "status": { ".validate": "newData.val() == 'Present'" },
+        "mainFiller": { ".validate": "!newData.exists() || newData.val() == '' || newData.val() == 'Yes' || newData.val() == 'No'" },
+        "mainFillerDate": { ".validate": "!newData.exists() || newData.isString()" },
+        "graphicsServerName": { ".validate": "!newData.exists() || newData.isString()" },
+        "graphicsServerStatus": { ".validate": "!newData.exists() || newData.isString()" },
+        "absentAttendees": { ".validate": "!newData.exists() || (newData.isString() && newData.val().length <= 2000)" }
+      }
+    },
+    "mainFillerAnswers": {
+      ".read": "auth != null",
+      ".write": "auth != null && !newData.exists()",
+      "$date": {
+        ".write": "auth != null && !data.exists()",
+        ".validate": "newData.hasChildren(['name', 'answer', 'serverName', 'recordType', 'recordId'])",
+        "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 100" },
+        "answer": { ".validate": "newData.val() == 'Yes' || newData.val() == 'No'" },
+        "serverName": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
+        "recordType": { ".validate": "newData.val() == 'attendance' || newData.val() == 'eventAttendance'" },
+        "recordId": { ".validate": "newData.isString() && newData.val().length > 0" }
+      }
+    },
+    "eventAttendance": {
+      ".read": "auth != null",
+      ".indexOn": ["date"],
+      ".write": "auth != null && !newData.exists()",
+      "$event": {
+        ".write": "auth != null && !data.exists() && (newData.child('mainFiller').val() == '' || (root.child('mainFillerAnswers').child(newData.child('mainFillerDate').val()).child('answer').val() == newData.child('mainFiller').val() && root.child('mainFillerAnswers').child(newData.child('mainFillerDate').val()).child('serverName').val() == newData.child('graphicsServerName').val() && root.child('mainFillerAnswers').child(newData.child('mainFillerDate').val()).child('recordType').val() == 'eventAttendance' && root.child('mainFillerAnswers').child(newData.child('mainFillerDate').val()).child('recordId').val() == $event))",
+        ".validate": "newData.hasChildren(['eventType', 'date', 'attendees']) && newData.child('attendees').hasChildren()",
+        "eventType": { ".validate": "newData.isString() && newData.val().length <= 100" },
+        "date": { ".validate": "newData.isString()" },
+        "mainFiller": { ".validate": "newData.val() == '' || newData.val() == 'Yes' || newData.val() == 'No'" },
+        "mainFillerDate": { ".validate": "newData.isString()" },
+        "submitterDistance": { ".validate": "newData.isNumber() && newData.val() >= 0" },
+        "graphicsServerName": { ".validate": "newData.isString()" },
+        "graphicsServerStatus": { ".validate": "newData.isString()" },
+        "attendees": {
+          "$attendee": {
+            ".validate": "newData.hasChildren(['name', 'status'])",
+            "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 80" },
+            "status": { ".validate": "newData.val() == 'Present' || newData.val() == 'Late' || newData.val() == 'Absent'" }
+          }
+        }
+      }
+    },
+    "graphicsSchedule": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".validate": "newData.hasChildren(['servers', 'assignments'])"
+    },
+    "location": {
+      ".read": "auth != null",
+      ".write": "auth != null",
+      ".validate": "newData.hasChildren(['name', 'latitude', 'longitude', 'radius'])",
+      "name": { ".validate": "newData.isString() && newData.val().length > 0 && newData.val().length <= 60" },
+      "latitude": { ".validate": "newData.isNumber() && newData.val() >= -90 && newData.val() <= 90" },
+      "longitude": { ".validate": "newData.isNumber() && newData.val() >= -180 && newData.val() <= 180" },
+      "radius": { ".validate": "newData.isNumber() && newData.val() > 0 && newData.val() <= 50000" }
+    }
+  }
+}
